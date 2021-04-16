@@ -126,7 +126,12 @@ lpt_putc(int c)
 /***** Text-mode CGA/VGA display output *****/
 
 static unsigned addr_6845;
+/* crt_buf是终端的缓冲区，
+	缓冲区被设置为25行80列，
+	初始化时指向了显示器I/O地址 */
 static uint16_t *crt_buf;
+/* crt_pos是当前字符在缓冲区的位置，
+	例如，crt_pos = 85，代表在matrix[1][5]这个位置 */
 static uint16_t crt_pos;
 
 static void
@@ -167,12 +172,14 @@ cga_putc(int c)
 		c |= 0x0700;
 
 	switch (c & 0xff) {
+	/* 相当于按下删除键，当前指针crt_pos要回退一列 */
 	case '\b':
 		if (crt_pos > 0) {
 			crt_pos--;
 			crt_buf[crt_pos] = (c & ~0xff) | ' ';
 		}
 		break;
+	/* 换行，当前指针crt_pos要下移一行 */
 	case '\n':
 		crt_pos += CRT_COLS;
 		/* fallthru */
@@ -186,12 +193,14 @@ cga_putc(int c)
 		cons_putc(' ');
 		cons_putc(' ');
 		break;
+	/* 当前字符写入缓冲区 */
 	default:
 		crt_buf[crt_pos++] = c;		/* write the character */
 		break;
 	}
 
 	// What is the purpose of this?
+	/* 当前字符超出缓冲区，需要整体上移，丢弃掉第0行 */
 	if (crt_pos >= CRT_SIZE) {
 		int i;
 

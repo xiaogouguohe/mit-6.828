@@ -59,6 +59,22 @@ int
 mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 {
 	// Your code here.
+	cprintf("Stack backtrace:\n");
+
+	/* 获取%epb的值，并且转换为指针类型，
+	因为本来%ebp的值就是地址 */
+	uint32_t* loc = (uint32_t*)read_ebp();
+	/* 在entry.S中，%ebp的初始值被设为0x0，
+	因此如果回溯到%ebp的值为0，说明已经到了最外层 */
+	while (loc != 0x0) {
+		/* 输出对齐为8位,
+		输出分别为当前栈帧的底部地址，当前过程的返回地址，当前过程的参数的值 */
+		cprintf("  ebp %08x  eip %08x  args %08x %08x %08x %08x %08x\n", 
+			loc, *(loc + 1), *(loc + 2), *(loc + 3), *(loc + 4), *(loc + 5), *(loc + 6));
+		/* 父过程的栈底地址 */
+		loc = (uint32_t*)*loc;
+	}
+
 	return 0;
 }
 

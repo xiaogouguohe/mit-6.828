@@ -55,9 +55,15 @@ entry:
 
 	# Load the physical address of entry_pgdir into cr3.  entry_pgdir
 	# is defined in entrypgdir.c.
+	# entry_pgdir的物理地址放入寄存器cr3
+	# entry_pgdir的定义见entrypgdir.c
+	# 哪里实现了物理地址 = 虚拟地址 - KERNBASE？？？
+	# 为什么entry_pgdir可以实现虚拟地址到物理地址的映射，entrypgdir.c看不明白？？？
+	# 打开页机制之后，给定一个虚拟地址0xf010002f，又是如何根据cr3还有其它，得到物理地址0x0010002f的？？？
 	movl	$(RELOC(entry_pgdir)), %eax
 	movl	%eax, %cr3
 	# Turn on paging.
+	# 修改寄存器cr0的一些标志位，打开页机制
 	movl	%cr0, %eax
 	orl	$(CR0_PE|CR0_PG|CR0_WP), %eax
 	movl	%eax, %cr0
