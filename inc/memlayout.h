@@ -54,10 +54,10 @@
  * UTOP,UENVS ------>  +------------------------------+ 0xeec00000
  * UXSTACKTOP -/       |     User Exception Stack     | RW/RW  PGSIZE
  *                     +------------------------------+ 0xeebff000
- *                     |       Empty Memory (*)       | --/--  PGSIZE
+ *                                      |       Empty Memory (*)       | --/--  PGSIZE
  *    USTACKTOP  --->  +------------------------------+ 0xeebfe000
- *                     |      Normal User Stack       | RW/RW  PGSIZE
- *                     +------------------------------+ 0xeebfd000
+ *                                         |       Normal User Stack       | RW/RW  PGSIZE
+ *                                        +------------------------------+ 0xeebfd000
  *                     |                              |
  *                     |                              |
  *                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -65,17 +65,17 @@
  *                     .                              .
  *                     .                              .
  *                     |~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~|
- *                     |     Program Data & Heap      |
- *    UTEXT -------->  +------------------------------+ 0x00800000
+ *                                     |     Program Data & Heap      |
+ *    UTEXT -------->  +-----------------------------   -+ 0x00800000
  *    PFTEMP ------->  |       Empty Memory (*)       |        PTSIZE
- *                     |                              |
+ *                                      |                                                      |
  *    UTEMP -------->  +------------------------------+ 0x00400000      --+
- *                     |       Empty Memory (*)       |                   |
- *                     | - - - - - - - - - - - - - - -|                   |
- *                     |  User STAB Data (optional)   |                 PTSIZE
- *    USTABDATA ---->  +------------------------------+ 0x00200000        |
- *                     |       Empty Memory (*)       |                   |
- *    0 ------------>  +------------------------------+                 --+
+ *                                       |       Empty Memory (*)       |                                   |
+ *                                       | - - - - - - - - - - - -                       - - -|                           |
+ *                                        |  User STAB Data (optional)   |                 PTSIZE
+ *    USTABDATA ---->  +------------------------------    + 0x00200000        |
+ *                                         |       Empty Memory (*)       |                                  |
+ *    0 ------------>           +------------------------------+                 --+
  *
  * (*) Note: The kernel ensures that "Invalid Memory" is *never* mapped.
  *     "Empty Memory" is normally unmapped, but user programs may map pages

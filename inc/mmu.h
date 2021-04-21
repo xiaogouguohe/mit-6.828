@@ -42,8 +42,8 @@
 #define PGADDR(d, t, o)	((void*) ((d) << PDXSHIFT | (t) << PTXSHIFT | (o)))
 
 // Page directory and page table constants.
-#define NPDENTRIES	1024		// page directory entries per page directory
-#define NPTENTRIES	1024		// page table entries per page table
+#define NPDENTRIES	1024		// page directory entries per page directory // 页目录的表项数目
+#define NPTENTRIES	1024		// page table entries per page table // 页表的表项数目
 
 #define PGSIZE		4096		// bytes mapped by a page
 #define PGSHIFT		12		// log2(PGSIZE)
