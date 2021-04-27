@@ -44,16 +44,33 @@ enum EnvType {
 };
 
 struct Env {
+	/* inc/trap.h定义，存放当环境上下文切换时，重要寄存器的值，
+	注意和过程（函数）调用时的寄存器保存进行比较，
+	过程调用时，寄存器是保存在用户栈的 */
 	struct Trapframe env_tf;	// Saved registers
+	/* 指向在env_free_list中，后一个free的Env结构体，
+	当前结构体空闲时，该域才有用 */
 	struct Env *env_link;		// Next free Env
+	/* 唯一标识 */
 	envid_t env_id;			// Unique environment identifier
+	/* 父环境id */
 	envid_t env_parent_id;		// env_id of this env's parent
+	/* 区别某些特殊的环境，大多数时候都是ENV_TYPE_USER */
 	enum EnvType env_type;		// Indicates special system environments
+	/* 环境的状态，有以下可能，
+	ENV_FREE: 结构体在env_free_list中
+　ENV_RUNNABLE: 用户环境就绪，等待被分配处理机
+　ENV_RUNNING: 用户环境正在运行
+　ENV_NOT_RUNNABLE: 用户环境阻塞，等待其他环境的信号
+　ENV_DYING: 僵尸环境 */
 	unsigned env_status;		// Status of the environment
+
 	uint32_t env_runs;		// Number of times environment has run
 	int env_cpunum;			// The CPU that the env is running on
 
 	// Address space
+	/* 该环境的页目录的虚拟地址,
+	每个环境的虚拟地址空间是独立的，因此要有各自的页目录和页表 */
 	pde_t *env_pgdir;		// Kernel virtual address of page dir
 
 	// Exception handling

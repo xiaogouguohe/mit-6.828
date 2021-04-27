@@ -279,6 +279,16 @@ struct Gatedesc {
 // - dpl: Descriptor Privilege Level -
 //	  the privilege level required for software to invoke
 //	  this interrupt/trap gate explicitly using an int instruction.
+/* 这个宏定义设置了一个IDT表项，各个参数含义如下，
+gate是IDT表项；
+isstrap表明是异常还是中断，两者区别见3.2.5；
+sel是代码段选择符，它会标识一个段描述符，
+这个段描述符描述了中断处理程序所在的段，
+其实sel相当于中断处理程序的分段地址的前16位；
+off是中断处理程序的地址在所在段中的偏移量，
+其实off相当于中断处理程序的分段地址的后32位；
+dpl是段描述符的字段，表示中断处理程序所在段的特权级
+ */
 #define SETGATE(gate, istrap, sel, off, dpl)			\
 {								\
 	(gate).gd_off_15_0 = (uint32_t) (off) & 0xffff;		\

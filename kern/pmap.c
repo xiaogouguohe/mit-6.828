@@ -155,11 +155,7 @@ mem_init(void)
 	// following line.)
 
 	// Permissions: kernel R, user R
-	/*这一条指令就是再为页目录表添加第一个页目录表项。通过查看memlayout.h文件，我们可以看到，
-	UVPT的定义是一段虚拟地址的起始地址，0xef400000，从这个虚拟地址开始，
-	存放的就是这个操作系统的页表kern_pgdir，所以我们必须把它和页表kern_pgdir的物理地址映射起来，
-	PADDR(kern_pgdir)就是在计算kern_pgdir所对应的物理地址,
-	为什么是kern_pgdir[PDX(UVPT)]，而不是kern_pgdir[kern_pgdir]？？？*/
+	/* 页目录的物理地址和UVPT的4M虚拟地址建立映射 */
 	kern_pgdir[PDX(UVPT)] = PADDR(kern_pgdir) | PTE_U | PTE_P;
 
 
@@ -170,7 +166,7 @@ mem_init(void)
 	// array.  'npages' is the number of physical pages in memory.  Use memset
 	// to initialize all fields of each struct PageInfo to 0.
 	// Your code goes here:
-	pages = boot_alloc(npages * sizeof(struct PageInfo));
+	pages = (struct PageInfo*) boot_alloc(npages * sizeof(struct PageInfo));
 	for (struct PageInfo* cur = pages; cur != pages + npages; ++cur) {
 		memset(cur, 0, sizeof(struct PageInfo));
 	}
@@ -179,6 +175,8 @@ mem_init(void)
 	//////////////////////////////////////////////////////////////////////
 	// Make 'envs' point to an array of size 'NENV' of 'struct Env'.
 	// LAB 3: Your code here.
+	envs = (struct Env*) boot_alloc(NENV * sizeof(struct Env));
+	memset(envs, 0, NENV * sizeof(struct Env));
 
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
@@ -210,6 +208,9 @@ mem_init(void)
 	//    - the new image at UPAGES -- kernel R, user R
 	//      (ie. perm = PTE_U | PTE_P)
 	//    - pages itself -- kernel RW, user NONE
+	/* PageInfos数组在虚拟地址空间上保存在两个地方，
+	一个是pages，内核可以读写，用户无法访问，
+	另一个是UPAGES，内核和用户都可读不可写 */
 	// Your code goes here:
 	boot_map_region(kern_pgdir, UPAGES, UVPT - UPAGES, PADDR(pages), PTE_U);
 
@@ -220,6 +221,7 @@ mem_init(void)
 	//    - the new image at UENVS  -- kernel R, user R
 	//    - envs itself -- kernel RW, user NONE
 	// LAB 3: Your code here.
+	boot_map_region(kern_pgdir, UENVS, UPAGES - UENVS, PADDR(envs), PTE_U);
 
 	//////////////////////////////////////////////////////////////////////
 	// Use the physical memory that 'bootstack' refers to as the kernel
@@ -738,6 +740,26 @@ int
 user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 {
 	// LAB 3: Your code here.
+	char* begin = ROUNDDOWN((char *)va, PGSIZE);
+	char *end = ROUNDUP((char *)(va + len), PGSIZE);
+	pte_t* ptep = NULL;
+
+	for (char* cur_va = begin; cur_va < end; cur_va += PGSIZE) {
+		// 最后一个参数是1还是0，也就是需不需要新创建页表项？？？
+		ptep = pgdir_walk(env->env_pgdir, (void*)cur_va, 0);
+		if ((uint32_t)cur_va > ULIM || !ptep || ((*ptep) & PTE_W) == 0) { // ((uint32_t)(*cur) & perm) != perm
+
+			/* 注意判断当前的虚拟地址cur_va是否在[va, va + len) 范围内，
+			如果比va小，需要取va，因为va才是第一个没有权限访问的地址，而非cur_va */
+			if (cur_va ==begin) {
+				user_mem_check_addr = (uintptr_t)va;
+			}
+			else {
+				user_mem_check_addr = (uintptr_t)cur_va;
+			}
+			return -E_FAULT;
+		}
+	}
 
 	return 0;
 }
@@ -749,6 +771,9 @@ user_mem_check(struct Env *env, const void *va, size_t len, int perm)
 // If it cannot, 'env' is destroyed and, if env is the current
 // environment, this function will not return.
 //
+/* 检查环境env在权限为perm | PTE_U | PTE_P的情况下，是否有权限访问虚拟地址[va, va + len)，
+如果有权限访问，函数直接返回；
+否则，销毁环境env，如果被销毁的是当前环境，函数不返回 */
 void
 user_mem_assert(struct Env *env, const void *va, size_t len, int perm)
 {

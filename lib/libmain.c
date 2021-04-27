@@ -13,7 +13,13 @@ libmain(int argc, char **argv)
 {
 	// set thisenv to point at our Env structure in envs[].
 	// LAB 3: Your code here.
-	thisenv = 0;
+	// thisenv = 0;
+
+	/* 获取当前环境的id */
+	envid_t envid = sys_getenvid();
+	/* 参考lib/env.h，
+	后9位就是当前环境在数组envs的索引 */
+	thisenv = &envs[ENVX(envid)];
 
 	// save the name of the program so that panic() can use it
 	if (argc > 0)
