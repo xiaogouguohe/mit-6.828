@@ -20,6 +20,10 @@ syscall(int num, int check, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 	// potentially change the condition codes and arbitrary
 	// memory locations.
 
+	/* ret是返回值，存放在%eax；
+	i是中断向量T_SYSCALL，表示这是系统调用产生的中断，存放在哪里？？？；
+	num是系统调用号，存放在%eax；
+	a1~a5是系统调用参数，分别存放在%edx, %ecx, %ebx, %edi和%esi */
 	asm volatile("int %1\n"
 		     : "=a" (ret)
 		     : "i" (T_SYSCALL),

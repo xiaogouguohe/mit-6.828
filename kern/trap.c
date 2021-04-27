@@ -65,6 +65,49 @@ trap_init(void)
 	extern struct Segdesc gdt[];
 
 	// LAB 3: Your code here.
+	/* 这里是函数声明，不是函数调用 */
+	void th0();
+	void th1();
+	void th3();
+	void th4();
+	void th5();
+	void th6();
+	void th7();
+	void th8();
+	void th9();
+	void th10();
+	void th11();
+	void th12();
+	void th13();
+	void th14();
+	void th16();
+	void th_syscall();
+
+	/* 设置IDT表项，
+	gate参数为idt[0]，表明了要设置表项idt[0]；
+	istrap参数为0，说明为异常；
+	sel为GD_KT，说明中断处理函数所在段为内核代码段；
+	off为th0，说明中断处理函数的段内偏移量为th0，
+	因为程序里的指针，就是段内偏移；
+	dpl为0，说明段的特权级为内核级
+	 */
+	SETGATE(idt[0], 0, GD_KT, th0, 0);		
+	SETGATE(idt[1], 0, GD_KT, th1, 0);  
+	SETGATE(idt[3], 0, GD_KT, th3, 3);
+	SETGATE(idt[4], 0, GD_KT, th4, 0);
+	SETGATE(idt[5], 0, GD_KT, th5, 0);
+	SETGATE(idt[6], 0, GD_KT, th6, 0);
+	SETGATE(idt[7], 0, GD_KT, th7, 0);
+	SETGATE(idt[8], 0, GD_KT, th8, 0);
+	SETGATE(idt[9], 0, GD_KT, th9, 0);
+	SETGATE(idt[10], 0, GD_KT, th10, 0);
+	SETGATE(idt[11], 0, GD_KT, th11, 0);
+	SETGATE(idt[12], 0, GD_KT, th12, 0);
+	SETGATE(idt[13], 0, GD_KT, th13, 0);
+	SETGATE(idt[14], 0, GD_KT, th14, 0);
+	SETGATE(idt[16], 0, GD_KT, th16, 0);
+
+	SETGATE(idt[T_SYSCALL], 0, GD_KT, th_syscall, 3);
 
 	// Per-CPU setup 
 	trap_init_percpu();
@@ -90,6 +133,7 @@ trap_init_percpu(void)
 	ltr(GD_TSS0);
 
 	// Load the IDT
+	/* idt寄存器存放idt_pd，idt_pd记录了IDT的地址和大小 */
 	lidt(&idt_pd);
 }
 
@@ -144,15 +188,42 @@ trap_dispatch(struct Trapframe *tf)
 {
 	// Handle processor exceptions.
 	// LAB 3: Your code here.
-
-	// Unexpected trap: The user process or the kernel has a bug.
-	print_trapframe(tf);
-	if (tf->tf_cs == GD_KT)
-		panic("unhandled trap in kernel");
-	else {
-		env_destroy(curenv);
-		return;
+	int32_t retcode = 0;
+	switch (tf->tf_trapno)
+	{
+	case T_PGFLT:
+		page_fault_handler(tf);
+		break;
+	case T_BRKPT:
+		/* 如果是用户手动设置的断点导致的中断，就输出寄存器信息 */
+		monitor(tf);
+		break;
+	case T_SYSCALL:
+		/* 如果是系统调用导致的中断，就调用系统调用kern/syscall.c的syacall函数，
+		参数是这些寄存器的值，
+		返回值放到eax寄存器 */
+		retcode = syscall(
+			tf->tf_regs.reg_eax,
+			tf->tf_regs.reg_edx,
+			tf->tf_regs.reg_ecx,
+			tf->tf_regs.reg_ebx,
+			tf->tf_regs.reg_edi,
+			tf->tf_regs.reg_esi);
+		tf->tf_regs.reg_eax = retcode;
+		break;
+	
+	
+	default:
+		// Unexpected trap: The user process or the kernel has a bug.
+		print_trapframe(tf);
+		if (tf->tf_cs == GD_KT)
+			panic("unhandled trap in kernel");
+		else {
+			env_destroy(curenv);
+			return;
+		}
 	}
+
 }
 
 void
@@ -165,10 +236,15 @@ trap(struct Trapframe *tf)
 	// Check that interrupts are disabled.  If this assertion
 	// fails, DO NOT be tempted to fix it by inserting a "cli" in
 	// the interrupt path.
+	/* 判断中断机制是否打开 */
 	assert(!(read_eflags() & FL_IF));
 
 	cprintf("Incoming TRAP frame at %p\n", tf);
 
+	/* 被中断的程序是用户态，
+	如果是，需要把用户态的寄存器的值保存在当前环境的env_tf成员，
+	才能在下次在用户态运行这个环境的时候，恢复寄存器
+	其实寄存器的值已经保留在了内核栈，不知道是否一定要再保存一份在env_tf成员 */
 	if ((tf->tf_cs & 3) == 3) {
 		// Trapped from user mode.
 		assert(curenv);
@@ -176,6 +252,7 @@ trap(struct Trapframe *tf)
 		// Copy trap frame (which is currently on the stack)
 		// into 'curenv->env_tf', so that running the environment
 		// will restart at the trap point.
+		/* 把被中断的程序的寄存器状态保存到当前环境curenv的成员env_tf */
 		curenv->env_tf = *tf;
 		// The trapframe on the stack should be ignored from here on.
 		tf = &curenv->env_tf;
@@ -205,6 +282,9 @@ page_fault_handler(struct Trapframe *tf)
 	// Handle kernel-mode page faults.
 
 	// LAB 3: Your code here.
+	if ((tf->tf_cs & 3) == 0) {
+		panic("in func page_fault_handler, page fault happens in kernel mode!");
+	}
 
 	// We've already handled kernel-mode exceptions, so if we get here,
 	// the page fault happened in user mode.
