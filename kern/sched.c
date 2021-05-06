@@ -30,6 +30,26 @@ sched_yield(void)
 
 	// LAB 4: Your code here.
 
+	int start = 0;
+	int j;
+	if (thiscpu->cpu_env) {
+		/* 从当前Env结构的后一个开始 */
+		start = ENVX(thiscpu->cpu_env->env_id) + 1;	
+	}
+
+	/* //遍历所有Env结构 */
+	for (int i = 0; i < NENV; i++) {		
+		j = (start + i) % NENV;
+		if (envs[j].env_status == ENV_RUNNABLE) {
+			env_run(&envs[j]);
+		}
+	}
+
+	/* 这是必须的，假设当前只有一个Env，如果没有这个判断，那么这个CPU将会停机 */
+	if (thiscpu->cpu_env && thiscpu->cpu_env->env_status == ENV_RUNNING) {
+		env_run(curenv);
+	}
+
 	// sched_halt never returns
 	sched_halt();
 }
@@ -46,10 +66,11 @@ sched_halt(void)
 	// environments in the system, then drop into the kernel monitor.
 	for (i = 0; i < NENV; i++) {
 		if ((envs[i].env_status == ENV_RUNNABLE ||
-		     envs[i].env_status == ENV_RUNNING ||
-		     envs[i].env_status == ENV_DYING))
+			envs[i].env_status == ENV_RUNNING ||
+			envs[i].env_status == ENV_DYING))
 			break;
 	}
+
 	if (i == NENV) {
 		cprintf("No runnable environments in the system!\n");
 		while (1)
@@ -65,10 +86,14 @@ sched_halt(void)
 	// big kernel lock
 	xchg(&thiscpu->cpu_status, CPU_HALTED);
 
+	cprintf("in func sched_halt, 444\n");
+
 	// Release the big kernel lock as if we were "leaving" the kernel
 	unlock_kernel();
 
+	cprintf("in func sched_halt, 333\n");
 	// Reset stack pointer, enable interrupts and then halt.
+	/* 这里是如何实现 halt 的？？？ */
 	asm volatile (
 		"movl $0, %%ebp\n"
 		"movl %0, %%esp\n"
@@ -80,5 +105,122 @@ sched_halt(void)
 		"hlt\n"
 		"jmp 1b\n"
 	: : "a" (thiscpu->cpu_ts.ts_esp0));
+	cprintf("in func sched_halt, 000\n");
 }
+
+// #include <inc/assert.h>
+// #include <inc/x86.h>
+// #include <kern/spinlock.h>
+// #include <kern/env.h>
+// #include <kern/pmap.h>
+// #include <kern/monitor.h>
+
+// void sched_halt(void);
+
+// // Choose a user environment to run and run it.
+// void
+// sched_yield(void)
+// {
+// 	struct Env *idle;
+
+// 	// Implement simple round-robin scheduling.
+// 	//
+// 	// Search through 'envs' for an ENV_RUNNABLE environment in
+// 	// circular fashion starting just after the env this CPU was
+// 	// last running.  Switch to the first such environment found.
+// 	//
+// 	// If no envs are runnable, but the environment previously
+// 	// running on this CPU is still ENV_RUNNING, it's okay to
+// 	// choose that environment.
+// 	//
+// 	// Never choose an environment that's currently running on
+// 	// another CPU (env_status == ENV_RUNNING). If there are
+// 	// no runnable environments, simply drop through to the code
+// 	// below to halt the cpu.
+
+// 	// LAB 4: Your code here.
+// 	// int start = 0;
+// 	// int j;
+// 	// if (curenv) {
+// 	// 	start = ENVX(curenv->env_id) + 1;	//从当前Env结构的后一个开始
+// 	// }
+// 	// for (int i = 0; i < NENV; i++) {		//遍历所有Env结构
+// 	// 	j = (start + i) % NENV;
+// 	// 	if (envs[j].env_status == ENV_RUNNABLE) {
+// 	// 		env_run(&envs[j]);
+// 	// 	}
+// 	// }
+// 	// if (curenv && curenv->env_status == ENV_RUNNING) {
+// 	// 	env_run(curenv);
+// 	// }
+
+// 	struct Env *now = thiscpu->cpu_env;
+//     int32_t startid = (now) ? ENVX(now->env_id): 0;
+//     int32_t nextid;
+//     size_t i;
+//     // 当前没有任何环境执行,应该从0开始查找
+//     for(i = 0; i < NENV; i++) {
+//         nextid = (startid+i)%NENV;
+//         if(envs[nextid].env_status == ENV_RUNNABLE) {
+//                 env_run(&envs[nextid]);
+//                 return;
+//             }
+//     }
+    
+//     // 循环一圈后，没有可执行的环境
+//     if(envs[startid].env_status == ENV_RUNNING && envs[startid].env_cpunum == cpunum()) {
+//         env_run(&envs[startid]);
+//     }
+
+// 	// sched_halt never returns
+// 	sched_halt();
+// }
+
+// // Halt this CPU when there is nothing to do. Wait until the
+// // timer interrupt wakes it up. This function never returns.
+// //
+// void
+// sched_halt(void)
+// {
+// 	int i;
+
+// 	// For debugging and testing purposes, if there are no runnable
+// 	// environments in the system, then drop into the kernel monitor.
+// 	for (i = 0; i < NENV; i++) {
+// 		if ((envs[i].env_status == ENV_RUNNABLE ||
+// 		     envs[i].env_status == ENV_RUNNING ||
+// 		     envs[i].env_status == ENV_DYING))
+// 			break;
+// 	}
+// 	if (i == NENV) {
+// 		cprintf("No runnable environments in the system!\n");
+// 		while (1)
+// 			monitor(NULL);
+// 	}
+
+// 	// Mark that no environment is running on this CPU
+// 	curenv = NULL;
+// 	lcr3(PADDR(kern_pgdir));
+
+// 	// Mark that this CPU is in the HALT state, so that when
+// 	// timer interupts come in, we know we should re-acquire the
+// 	// big kernel lock
+// 	xchg(&thiscpu->cpu_status, CPU_HALTED);
+
+// 	// Release the big kernel lock as if we were "leaving" the kernel
+// 	unlock_kernel();
+
+// 	// Reset stack pointer, enable interrupts and then halt.
+// 	asm volatile (
+// 		"movl $0, %%ebp\n"
+// 		"movl %0, %%esp\n"
+// 		"pushl $0\n"
+// 		"pushl $0\n"
+// 		// Uncomment the following line after completing exercise 13
+// 		"sti\n"
+// 		"1:\n"
+// 		"hlt\n"
+// 		"jmp 1b\n"
+// 	: : "a" (thiscpu->cpu_ts.ts_esp0));
+// }
 

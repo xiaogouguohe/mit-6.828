@@ -16,14 +16,19 @@ int ismp;
 int ncpu;
 
 // Per-CPU kernel stacks
+/* 所有 CPU 的内核栈 */
 unsigned char percpu_kstacks[NCPU][KSTKSIZE]
 __attribute__ ((aligned(PGSIZE)));
 
 
 // See MultiProcessor Specification Version 1.[14]
 
+/* mp结构存储了关于CPU配置表 configuration table 的一些信息，
+包括physaddr指明了 configuration table 表头的物理起始地址 */
 struct mp {             // floating pointer [MP 4.1]
+	/* 标志这是一个mp结构，方便查找 */
 	uint8_t signature[4];           // "_MP_"
+	/* mp config table 的物理地址 */
 	physaddr_t physaddr;            // phys addr of MP config table
 	uint8_t length;                 // 1
 	uint8_t specrev;                // [14]
@@ -41,14 +46,18 @@ struct mpconf {         // configuration table header [MP 4.2]
 	uint8_t product[20];            // product id
 	physaddr_t oemtable;            // OEM table pointer
 	uint16_t oemlength;             // OEM table length
+	/* 表项的数目 */
 	uint16_t entry;                 // entry count
+	/* 所有CPU的LAPIC的物理起始地址 */
 	physaddr_t lapicaddr;           // address of local APIC
 	uint16_t xlength;               // extended table length
 	uint8_t xchecksum;              // extended table checksum
 	uint8_t reserved;
+	/* 表项指针，指向一个表项，也就是mpproc结构 */
 	uint8_t entries[0];             // table entries
 } __attribute__((__packed__));
 
+/* CPU配置表的表项内容 */
 struct mpproc {         // processor table entry [MP 4.3.1]
 	uint8_t type;                   // entry type (0)
 	uint8_t apicid;                 // local APIC id
@@ -69,6 +78,7 @@ struct mpproc {         // processor table entry [MP 4.3.1]
 #define MPIOINTR  0x03  // One per bus interrupt source
 #define MPLINTR   0x04  // One per system interrupt source
 
+/* 计算从虚拟地址addr开始，len字节长度的地址范围的每个字节的值之和 */
 static uint8_t
 sum(void *addr, int len)
 {
@@ -81,13 +91,16 @@ sum(void *addr, int len)
 }
 
 // Look for an MP structure in the len bytes at physical address addr.
+/* 在物理地址a开始，长度为len字节的地址范围内，找mp结构 */
 static struct mp *
 mpsearch1(physaddr_t a, int len)
 {
 	struct mp *mp = KADDR(a), *end = KADDR(a + len);
 
+	/* 查找 "_MP_" 标识符 */
 	for (; mp < end; mp++)
 		if (memcmp(mp->signature, "_MP_", 4) == 0 &&
+			/* mp结构体的所有字节的和为0，校验 */
 		    sum(mp, sizeof(*mp)) == 0)
 			return mp;
 	return NULL;
@@ -98,6 +111,10 @@ mpsearch1(physaddr_t a, int len)
 // 1) in the first KB of the EBDA;
 // 2) if there is no EBDA, in the last KB of system base memory;
 // 3) in the BIOS ROM between 0xE0000 and 0xFFFFF.
+/* 根据上述3种情况，在上述3个位置找mp结构，
+情况 1) 在什么地址？？？BIOS的数据和BIOS ROM有什么区别？？？
+情况 2) 在什么地址？？？
+情况 3) 应该是[0xF0000, 0x100000) ？？？ */
 static struct mp *
 mpsearch(void)
 {
@@ -119,28 +136,35 @@ mpsearch(void)
 	} else {
 		// The size of base memory, in KB is in the two bytes
 		// starting at 0x13 of the BDA.
+		/* 情况2)， */
 		p = *(uint16_t *) (bda + 0x13) * 1024;
 		if ((mp = mpsearch1(p - 1024, 1024)))
 			return mp;
 	}
+
+	/* 情况3)，在BIOS ROM，也就是960KB ~ 1MB */
 	return mpsearch1(0xF0000, 0x10000);
 }
 
 // Search for an MP configuration table.  For now, don't accept the
 // default configurations (physaddr == 0).
 // Check for the correct signature, checksum, and version.
+/* 找到CPU配置表表头mpconf */ 
 static struct mpconf *
 mpconfig(struct mp **pmp)
 {
 	struct mpconf *conf;
 	struct mp *mp;
 
+	/* 没找到mp结构 */
 	if ((mp = mpsearch()) == 0)
 		return NULL;
 	if (mp->physaddr == 0 || mp->type != 0) {
 		cprintf("SMP: Default configurations not implemented\n");
 		return NULL;
 	}
+
+	/* 根据 mp 结构，找到 CPU 配置表结构 mpconf */
 	conf = (struct mpconf *) KADDR(mp->physaddr);
 	if (memcmp(conf, "PCMP", 4) != 0) {
 		cprintf("SMP: Incorrect MP configuration table signature\n");
@@ -171,19 +195,31 @@ mp_init(void)
 	uint8_t *p;
 	unsigned int i;
 
+	/* bootcpu 选第一块cpu */
 	bootcpu = &cpus[0];
+	/* 没找到CPU配置表 mpconf 结构 */
 	if ((conf = mpconfig(&mp)) == 0)
 		return;
 	ismp = 1;
 	lapicaddr = conf->lapicaddr;
 
+	/* 遍历CPU配置表 */
 	for (p = conf->entries, i = 0; i < conf->entry; i++) {
+		/* p 指向 mpproc 结构的第一个成员，即type 成员，
+		根据 mpproc 的类型，判断它表示什么类型的CPU */
 		switch (*p) {
 		case MPPROC:
+			cprintf("in func mp_init, case is MPPROC\n");
 			proc = (struct mpproc *)p;
-			if (proc->flags & MPPROC_BOOT)
+			/* 判断当前 CPU 是否为 boot CPU */
+			/* ncpu 初始化为0 */
+			if (proc->flags & MPPROC_BOOT) {
+				cprintf("in func mp_init, is boot, ncpu: %d\n", ncpu);
 				bootcpu = &cpus[ncpu];
+			}
+			/* 把当前 CPU 记录到 cpus 数组 */
 			if (ncpu < NCPU) {
+				cprintf("in func mp_init, ncpu: %d\n", ncpu);
 				cpus[ncpu].cpu_id = ncpu;
 				ncpu++;
 			} else {
@@ -206,6 +242,8 @@ mp_init(void)
 	}
 
 	bootcpu->cpu_status = CPU_STARTED;
+
+	/* 没有 MP 结构，或发现了无法识别类型的 mpproc 结构，回退到没有 MP 的情况 */
 	if (!ismp) {
 		// Didn't like what we found; fall back to no MP.
 		ncpu = 1;

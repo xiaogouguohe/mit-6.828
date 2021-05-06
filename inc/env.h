@@ -27,6 +27,7 @@ typedef int32_t envid_t;
 
 #define LOG2NENV		10
 #define NENV			(1 << LOG2NENV)
+/* 获取环境在 envs 数组中的索引 */
 #define ENVX(envid)		((envid) & (NENV - 1))
 
 // Values of env_status in struct Env

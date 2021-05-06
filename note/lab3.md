@@ -291,7 +291,7 @@
 - 页面错误异常对应的中断向量是14（T_PGFLT）
 - 当页面故障发生时，导致故障的线性地址会被存储到寄存器cr2中
 - trap.c的函数page_fault_handler() 用于处理缺页异常
-- Exercises: 修改trap_dispatch函数，使得系统能够把缺页异常引导到page_fault_handler() 上执行
+- Code: 修改trap_dispatch函数，使得系统能够把缺页异常引导到page_fault_handler() 上执行
   - 修改完成后，运行make grade，应该能够成功运行faultread, falutreadkernel, faultwrite, faultwritekernel测试程序
   - 在实现系统调用时，还需要对这里继续修改
 
@@ -299,7 +299,7 @@
 
 - 断点异常对应的中断向量是3（T_BRKPT）
 - 用于允许开发人员在代码中插入断点，这种插入是通过用特殊的1字节int3软中断临时替换相关的指令实现的
-- Exercises: 修改trap_dispatch()，使得断点异常发生时，能触发kernel/monitor.c中的monitor函数
+- Code: 修改trap_dispatch()，使得断点异常发生时，能触发kernel/monitor.c中的monitor函数
   - 修改完成后，运行make grade，应该能够正确运行brakpoint测试程序
 - 一些问题和回答
   - ###
@@ -318,7 +318,7 @@
     - 系统调用参数最多五个，存放在%edx, %ecx, %ebx, %edi和%esi
     - 内核将返回值存放在%eax
   - lib/syscall.c中已经写好了用于调用系统调用的汇编代码，需要通过阅读来理解系统调用
-- Exercises: 在内核中为中断向量T_SYSCALL添加一个处理程序
+- Code: 在内核中为中断向量T_SYSCALL添加一个处理程序
   - 修改kern/trapentry.S和kern/trap.c的trap_init()
     - 在kern/trapentry.S中声明T_SYSCALL的中断处理函数，和之前为其它中断号做的一样
     - 在trap_init() 中做th_syscall() 的函数声明，并给th_syscall() 注册
@@ -340,7 +340,7 @@
   - libmain() 调用umain，这个程序就是user/hello.c中被调用的函数
     - 之前hello.c程序只会打印"hello, world"，然后就会页异常，原因就是打印当前环境时，thisenv->env_id这条语句，thisenv没有被正确初始化指向当前环境
     - 现在已经初始化了thisenv的值，再运行就不会报错了
-- Exercises: 补全libmain()
+- Code: 补全libmain()
   - 关键是获取当前环境
   - 重新启动内核，会发现可以打印出来"i am environment 00001000"
 
@@ -374,7 +374,7 @@
       - 此时内核不能解析这个指针，否则会泄露内核信息？？？
   - 需要检查所有由用户程序传递来的指针指向的空间，来解决上述两个问题
     - 检查这个地址是否在用户地址空间部分，并且能通过页表进行内存操作
-- Exercises: 修改kern/trap.c，使得能够发现，内核态下发生页异常时，trap.c会panic
+- Code: 修改kern/trap.c，使得能够发现，内核态下发生页异常时，trap.c会panic
   - 为了能够判断页异常是发生在用户态还是内核态，需要检查tf_cs的低几位
     - 修改page_fault_handler
     - tf_cs的后两位表示当前代码段的权限，在页异常的处理函数page_fault_handler需要做这样的检查

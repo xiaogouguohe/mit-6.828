@@ -15,6 +15,7 @@ umain(int argc, char **argv)
 	// fork a child process
 	who = dumbfork();
 
+	cprintf("in func umain, who %d\n:", who);
 	// print a message and yield to the other a few times
 	for (i = 0; i < (who ? 10 : 20); i++) {
 		cprintf("%d: I am the %s!\n", i, who ? "parent" : "child");
@@ -28,8 +29,12 @@ duppage(envid_t dstenv, void *addr)
 	int r;
 
 	// This is NOT what you should do in your fork.
+	/* 为源进程 dstenv 的虚拟地址 addr 分配一个物理页，即建立映射关系 */
 	if ((r = sys_page_alloc(dstenv, addr, PTE_P|PTE_U|PTE_W)) < 0)
 		panic("sys_page_alloc: %e", r);
+	/* 父进程 dstenv 的虚拟地址 addr 已经映射到一个物理页上，
+	现在把子进程的虚拟地址 UTEMP 映射到同一个物理页上，
+	为什么不能直接访问子进程的虚拟地址 addr ？？？ */
 	if ((r = sys_page_map(dstenv, addr, 0, UTEMP, PTE_P|PTE_U|PTE_W)) < 0)
 		panic("sys_page_map: %e", r);
 	memmove(UTEMP, addr, PGSIZE);
@@ -50,6 +55,7 @@ dumbfork(void)
 	// so that the child will appear to have called sys_exofork() too -
 	// except that in the child, this "fake" call to sys_exofork()
 	// will return 0 instead of the envid of the child.
+	/* 创建子进程 */
 	envid = sys_exofork();
 	if (envid < 0)
 		panic("sys_exofork: %e", envid);
@@ -58,6 +64,8 @@ dumbfork(void)
 		// The copied value of the global variable 'thisenv'
 		// is no longer valid (it refers to the parent!).
 		// Fix it and return 0.
+		/* 子进程在这里返回 */
+		cprintf("we are the child\n");
 		thisenv = &envs[ENVX(sys_getenvid())];
 		return 0;
 	}
@@ -65,10 +73,13 @@ dumbfork(void)
 	// We're the parent.
 	// Eagerly copy our entire address space into the child.
 	// This is NOT what you should do in your fork implementation.
+	/* 把父进程的虚拟地址范围 [UTEXT, end) 的内容复制到子进程，
+	end 到哪里？？？ */
 	for (addr = (uint8_t*) UTEXT; addr < end; addr += PGSIZE)
 		duppage(envid, addr);
 
 	// Also copy the stack we are currently running on.
+	/* 把用户栈拷贝过去 */
 	duppage(envid, ROUNDDOWN(&addr, PGSIZE));
 
 	// Start the child environment running
