@@ -45,7 +45,7 @@ enum EnvType {
 };
 
 struct Env {
-	/* inc/trap.h定义，存放当环境上下文切换时，重要寄存器的值，
+	/* inc/trap.h定义，存放当环境上下文切换时，寄存器的值，
 	注意和过程（函数）调用时的寄存器保存进行比较，
 	过程调用时，寄存器是保存在用户栈的 */
 	struct Trapframe env_tf;	// Saved registers

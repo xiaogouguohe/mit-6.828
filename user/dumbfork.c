@@ -15,7 +15,7 @@ umain(int argc, char **argv)
 	// fork a child process
 	who = dumbfork();
 
-	cprintf("in func umain, who %d\n:", who);
+	// cprintf("in func umain, who %d:\n", who);
 	// print a message and yield to the other a few times
 	for (i = 0; i < (who ? 10 : 20); i++) {
 		cprintf("%d: I am the %s!\n", i, who ? "parent" : "child");
@@ -65,7 +65,7 @@ dumbfork(void)
 		// is no longer valid (it refers to the parent!).
 		// Fix it and return 0.
 		/* 子进程在这里返回 */
-		cprintf("we are the child\n");
+		// cprintf("we are the child\n");
 		thisenv = &envs[ENVX(sys_getenvid())];
 		return 0;
 	}

@@ -21,6 +21,7 @@ void (*_pgfault_handler)(struct UTrapframe *utf);
 // at UXSTACKTOP), and tell the kernel to call the assembly-language
 // _pgfault_upcall routine when a page fault occurs.
 //
+/* 用户程序注册用户态错误的处理函数 */
 void
 set_pgfault_handler(void (*handler)(struct UTrapframe *utf))
 {
@@ -29,7 +30,11 @@ set_pgfault_handler(void (*handler)(struct UTrapframe *utf))
 	if (_pgfault_handler == 0) {
 		// First time through!
 		// LAB 4: Your code here.
-		panic("set_pgfault_handler not implemented");
+		int r = sys_page_alloc(0, (void *)(UXSTACKTOP-PGSIZE), PTE_W | PTE_U | PTE_P);	//为当前进程分配异常栈
+		if (r < 0) {
+			panic("set_pgfault_handler:sys_page_alloc failed");;
+		}
+		sys_env_set_pgfault_upcall(0, _pgfault_upcall);		//系统调用，设置进程的env_pgfault_upcall属性
 	}
 
 	// Save handler pointer for assembly to call.

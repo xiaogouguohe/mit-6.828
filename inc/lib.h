@@ -58,7 +58,6 @@ int	sys_ipc_recv(void *rcv_pg);
 static inline envid_t __attribute__((always_inline))
 sys_exofork(void)
 {
-	cprintf("in func sys_exofork, begin\n");
 	envid_t ret;
 	asm volatile("int %2"
 		     : "=a" (ret)
