@@ -372,6 +372,8 @@ trap(struct Trapframe *tf)
 	/* 判断中断机制是否打开 */
 	assert(!(read_eflags() & FL_IF));
 
+    // cprintf("Incoming TRAP frame at %p\n", tf);
+
 	/* 被中断的程序是用户态，
 	如果是，需要把用户态的寄存器的值保存在当前环境的env_tf成员，
 	才能在下次在用户态运行这个环境的时候，恢复寄存器
