@@ -102,12 +102,9 @@ sched_halt(void)
 	// big kernel lock
 	xchg(&thiscpu->cpu_status, CPU_HALTED);
 
-	cprintf("in func sched_halt, 444\n");
-
 	// Release the big kernel lock as if we were "leaving" the kernel
 	unlock_kernel();
 
-	cprintf("in func sched_halt, 333\n");
 	// Reset stack pointer, enable interrupts and then halt.
 	/* 这里是如何实现 halt 的？？？ */
 	asm volatile (
@@ -116,11 +113,10 @@ sched_halt(void)
 		"pushl $0\n"
 		"pushl $0\n"
 		// Uncomment the following line after completing exercise 13
-		//"sti\n"
+		"sti\n"
 		"1:\n"
 		"hlt\n"
 		"jmp 1b\n"
 	: : "a" (thiscpu->cpu_ts.ts_esp0));
-	cprintf("in func sched_halt, 000\n");
 }
 

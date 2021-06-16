@@ -271,6 +271,7 @@ sys_page_map(envid_t srcenvid, void *srcva, envid_t dstenvid, void *dstva, int p
 
 	// LAB 4: Your code here.
 	struct Env* srce = NULL,  *dste = NULL;
+    // cprintf("000\n");
 
 	if (envid2env(srcenvid, &srce, 1) != 0) {
 		return  -E_BAD_ENV;
@@ -278,6 +279,7 @@ sys_page_map(envid_t srcenvid, void *srcva, envid_t dstenvid, void *dstva, int p
 	if (envid2env(dstenvid, &dste, 1) != 0) {
 		return  -E_BAD_ENV;
 	}
+    // cprintf("111\n");
 
 	if ((uint32_t) srcva >= UTOP || PGOFF(srcva) || (uint32_t) dstva >= UTOP || PGOFF(dstva)) {
 		return -E_INVAL;
@@ -286,6 +288,7 @@ sys_page_map(envid_t srcenvid, void *srcva, envid_t dstenvid, void *dstva, int p
 	if((perm & PTE_SYSCALL) == 0){
 		return -E_INVAL;
 	}
+    // cprintf("222\n");
 
     if (perm & ~PTE_SYSCALL) {
 		return -E_INVAL;
@@ -296,17 +299,20 @@ sys_page_map(envid_t srcenvid, void *srcva, envid_t dstenvid, void *dstva, int p
 	struct PageInfo *pp = page_lookup(srce->env_pgdir, srcva, &ptep);
 	/* 虚拟地址 srcva 没有映射到物理页上 */
 	if (!pp) {
+        // cprintf("sys_page_map, lookup fail\n");
 		return -E_INVAL;
 	}
 
 	/* 这个系统调用要求可写权限，但 srcva 却只有只读权限 */
 	if ((perm & PTE_W) && (*ptep & PTE_W) == 0) {
+        // cprintf("ask for write, but only has read perm\n");
 		return -E_INVAL;
 	}
 
 	/* 建立 dste 的虚拟地址 dstva 和物理页 pp 的映射关系，注意dst 和 src 区分 */
 	int res = page_insert(dste->env_pgdir, pp, dstva, perm);
 	if (res < 0) {
+        // cprintf("page_insert fail\n");
 		return -E_NO_MEM;
 	}
 
@@ -387,7 +393,95 @@ static int
 sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 {
 	// LAB 4: Your code here.
-	panic("sys_ipc_try_send not implemented");
+    struct Env* dste = NULL;
+    /* 权限检查是检查环境 dste 是否为当前环境或者当前环境的子环境，
+    这里没有这个限制 */
+	if (envid2env(envid, &dste, 0) != 0) {
+        cprintf("sys_send error because of bad env\n");
+		return  -E_BAD_ENV;
+	}
+
+    // ？？？
+    if (!dste->env_ipc_recving/* || dste->env_status != ENV_NOT_RUNNABLE || dste->env_ipc_from != 0*/) {
+        return -E_IPC_NOT_RECV;
+    }
+
+    int ret = 0;
+
+    if ((uint32_t) srcva < UTOP) {
+        /* 虚拟地址 srcva 没有页对齐 */
+        if (PGOFF(srcva) != 0) {
+            cprintf("sys_send error because of page not alien\n");
+            return -E_INVAL;
+        }
+
+        // cprintf("sys_ipc_try_send, begin to sys_page_map\n");
+        // if ((ret = sys_page_map(curenv->env_id, srcva, envid, dste->env_ipc_dstva, perm)) < 0) {
+        //     return ret;
+        // }
+
+        /* 找到虚拟地址 srcva 对应的物理页 */
+        pte_t* ptep = NULL;
+        struct PageInfo* page_info = page_lookup(curenv->env_pgdir, srcva, &ptep);
+
+        /* perm应该是*pte的子集 */
+        if ((*ptep & perm) != perm) {
+            return -E_INVAL;					
+        }
+
+        /* 虚拟地址 srcva 还没映射到物理页 */
+        if (!page_info) {
+            return -E_INVAL;
+        }
+
+        /* 接收者要求映射到虚拟地址 dstva 的物理页的写权限，
+        但事实上接收者又不具有写权限 */
+        if ((perm & PTE_W) && !(*ptep & PTE_W)) {
+            return -E_INVAL;
+        }
+
+        /*  */
+        if ((uint32_t )(dste->env_ipc_dstva) < UTOP) {
+            ret = page_insert(dste->env_pgdir, page_info, dste->env_ipc_dstva, perm); //共享相同的映射关系
+            if (ret) {
+                return ret;
+            } 
+            dste->env_ipc_perm = perm;
+        }
+    }
+
+    // struct Env *dste;
+	// int ret = envid2env(envid, &dste, 0);
+	// if (ret) return ret;
+	// if (!dste->env_ipc_recving) return -E_IPC_NOT_RECV;
+
+	// if (srcva < (void*)UTOP) {
+	// 	pte_t *pte;
+	// 	struct PageInfo *pg = page_lookup(curenv->env_pgdir, srcva, &pte);
+
+	// 	//按照注释的顺序进行判定
+	// 	if (srcva != ROUNDDOWN(srcva, PGSIZE)) return -E_INVAL;		//srcva没有页对齐
+	// 	if ((*pte & perm) != perm) return -E_INVAL;					//perm应该是*pte的子集
+	// 	if (!pg) return -E_INVAL;									//srcva还没有映射到物理页
+	// 	if ((perm & PTE_W) && !(*pte & PTE_W)) return -E_INVAL;		//写权限
+		
+	// 	if (dste->env_ipc_dstva < (void*)UTOP) {
+	// 		ret = page_insert(dste->env_pgdir, pg, dste->env_ipc_dstva, perm); //共享相同的映射关系
+	// 		if (ret) return ret;
+	// 		dste->env_ipc_perm = perm;
+	// 	}
+	// }
+
+    // // cprintf("sys_ipc_try_send success\n");
+    dste->env_ipc_recving = false;
+    dste->env_ipc_from = curenv->env_id;
+    dste->env_ipc_value = value;
+    dste->env_status = ENV_RUNNABLE;
+
+    /* ？？？ */
+    dste->env_tf.tf_regs.reg_eax = 0;
+
+    return 0;
 }
 
 // Block until a value is ready.  Record that you want to receive
@@ -405,8 +499,22 @@ static int
 sys_ipc_recv(void *dstva)
 {
 	// LAB 4: Your code here.
-	panic("sys_ipc_recv not implemented");
+    curenv->env_ipc_recving = true;
+    curenv->env_ipc_dstva = dstva;
+    curenv->env_status = ENV_NOT_RUNNABLE;
+    // cprintf("sys_ipc_recv, before yield\n");
+    sys_yield();
+    // cprintf("sys_ipc_recv, after yield\n");
+
+    if ( (uint32_t) dstva < UTOP) {
+        if ((uint32_t) dstva % PGSIZE != 0) {
+            return -E_INVAL;
+        }   
+    }
+
 	return 0;
+
+	// panic("sys_ipc_recv not implemented");
 }
 
 // Dispatches to the correct kernel function, passing the arguments.
@@ -446,6 +554,10 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		return sys_page_unmap((envid_t) a1, (void*) a2);
     case (SYS_env_set_pgfault_upcall):
         return sys_env_set_pgfault_upcall((envid_t) a1, (void*) a2);
+    case (SYS_ipc_recv):
+        return sys_ipc_recv((void*) a1);
+    case (SYS_ipc_try_send):
+        return sys_ipc_try_send((envid_t) a1, a2, (void*)a3, a4);
 	default:
 		return -E_INVAL;
 	}
