@@ -62,7 +62,16 @@ alloc_block(void)
 	// super->s_nblocks blocks in the disk altogether.
 
 	// LAB 5: Your code here.
-	panic("alloc_block not implemented");
+    
+	// panic("alloc_block not implemented");
+    for (uint32_t blockno = 0; blockno < super->s_nblocks; ++blockno) {
+        if (block_is_free(blockno)) {
+            bitmap[blockno/32] &= ~(1 << (blockno%32));
+            flush_block(&bitmap[blockno % 32]);
+            return blockno;
+        }
+    }
+
 	return -E_NO_DISK;
 }
 
@@ -131,11 +140,55 @@ fs_init(void)
 //
 // Analogy: This is like pgdir_walk for files.
 // Hint: Don't forget to clear any block you allocate.
+/* 找到文件 f 的第 filebno 个块的地址，存放在 ppdiskbno */
 static int
 file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool alloc)
 {
-       // LAB 5: Your code here.
-       panic("file_block_walk not implemented");
+    // LAB 5: Your code here.
+    int blockno;
+	uint32_t *indirects;
+    /* 文件的第 filebno 个块超出了最大文件大小 */
+	if (filebno >= NDIRECT + NINDIRECT) {
+		return -E_INVAL;
+    }
+
+	if (filebno < NDIRECT) {
+        /* 文件的第 filebno 个块在直接块的范围内 */
+		*ppdiskbno = &(f->f_direct[filebno]);
+	} else {
+        /* 文件的第 filebno 个块在间接块的范围内 */
+		if (f->f_indirect) {
+            /* 文件已经分配了间接块，直接拿来用，
+            indirects 是间接块的虚拟地址，
+            间接块存放了一个个块号，因此通过偏移量找到的是块号 */
+			indirects = diskaddr(f->f_indirect);
+			*ppdiskbno = &(indirects[filebno - NDIRECT]);
+		} else {
+			if (!alloc) {
+                /* 没分配间接块，但是参数 alloc 又没设置 */
+				return -E_NOT_FOUND;
+            }
+
+			if ((blockno = alloc_block()) < 0) {
+                return blockno;
+            }
+
+            /* 设置间接块为新分配的块 */
+			f->f_indirect = blockno;
+
+            /* 清零后记得写回磁盘，因为之前可能不是全零 */
+            memset(diskaddr(blockno), 0, BLKSIZE);
+  			flush_block(diskaddr(blockno));
+
+            /* 记录间接块号到 *ppdiskbno */            
+			indirects = diskaddr(blockno);
+			*ppdiskbno = &(indirects[filebno - NDIRECT]);
+		}
+	}
+
+	return 0;
+
+    // panic("file_block_walk not implemented");
 }
 
 // Set *blk to the address in memory where the filebno'th
@@ -146,11 +199,37 @@ file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool all
 //	-E_INVAL if filebno is out of range.
 //
 // Hint: Use file_block_walk and alloc_block.
+/* 把 blk 设为文件 f 的第 filebno 个块的虚拟地址 */
 int
 file_get_block(struct File *f, uint32_t filebno, char **blk)
 {
-       // LAB 5: Your code here.
-       panic("file_get_block not implemented");
+    // LAB 5: Your code here.
+    int r;
+    uint32_t *pdiskbno;
+    /* 没找到块号 */
+    if ((r = file_block_walk(f, filebno, &pdiskbno, true)) < 0) {
+        return r;
+    }
+
+    int blockno = 0;
+    if (*pdiskbno == 0) {			// 此时*pdiskbno保存着文件f第filebno块block的索引
+        /* 为什么块号可能为 0？？？ 
+        猜测有以下原因：
+        1) 在直接块范围内，但是直接块还没有被分配到这里
+        2) 在间接块范围内，且已经分配间接块，但是二级块还没有被分配*/
+        if ((blockno = alloc_block()) < 0) {
+            return blockno;
+        }
+        *pdiskbno = blockno;
+        memset(diskaddr(blockno), 0, BLKSIZE);
+        flush_block(diskaddr(blockno));
+    }
+
+    /* 根据块号 *pdistbno，得到块的虚拟地址，并且存放到 *blk */
+    *blk = diskaddr(*pdiskbno);
+    return 0;
+
+    // panic("file_get_block not implemented");
 }
 
 // Try to find a file named "name" in dir.  If so, set *file to it.

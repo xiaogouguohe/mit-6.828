@@ -417,5 +417,5 @@
 - 问题
 
   - 为什么 sys_ipc_try_send 判断接收者环境是否可以接收的时候，不需要后面两个条件？？？注意 pingpong 和 prime 两个测试例程
-
   - 为什么 sys_ipc_try_send 要给接收者环境设置返回值？？？
+  - 为了过lab3的测试，在env_destroy，alloc，free这些地方补回了输出，但是trap那里的trapframe的输出不能保留，会导致lab4一些错误，为什么？？？
